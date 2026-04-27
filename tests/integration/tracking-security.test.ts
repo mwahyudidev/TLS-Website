@@ -1,24 +1,25 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import path from "node:path";
 import fs from "node:fs";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
 
 const TEST_DB = path.resolve(__dirname, "../../db/data/_test_tracking.db");
 
-beforeAll(() => {
+beforeAll(async () => {
   for (const ext of ["", "-journal", "-wal", "-shm"]) {
     const p = TEST_DB + ext;
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
-  process.env.DATABASE_URL = TEST_DB;
-  const sqlite = new Database(TEST_DB);
-  sqlite.pragma("foreign_keys = ON");
-  migrate(drizzle(sqlite), {
+  process.env.TURSO_DATABASE_URL = `file:${TEST_DB}`;
+  process.env.TURSO_AUTH_TOKEN = "";
+
+  const client = createClient({ url: `file:${TEST_DB}` });
+  await migrate(drizzle(client), {
     migrationsFolder: path.resolve(__dirname, "../../db/migrations"),
   });
-  sqlite.close();
+  await client.close();
 });
 
 describe("tracking security", () => {

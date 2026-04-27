@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { users, customers, roles } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/server/lib/password";
 import { errors } from "@/server/lib/errors";
+import { sendWelcomeEmail } from "@/server/lib/email";
 import {
   createSession,
   destroyCurrentSession,
@@ -55,6 +56,8 @@ export async function register(input: RegisterInput): Promise<AuthUser> {
   });
 
   await createSession(created.id);
+
+  void sendWelcomeEmail(created.email, { name: created.name });
 
   return {
     id: created.id,

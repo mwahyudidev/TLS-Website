@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { sendOrderShipped } from "@/server/lib/email";
 import {
   shipments,
   orders,
@@ -163,6 +164,19 @@ export async function setShipmentStatus(
       });
     }
   });
+
+  if (newStatus === "shipped") {
+    const order = await db.select().from(orders).where(eq(orders.id, ship.orderId)).get();
+    if (order) {
+      void sendOrderShipped(order.customerEmail, {
+        customerName: order.customerName,
+        orderNumber: order.orderNumber,
+        courierName: ship.courierName,
+        trackingNumber: ship.trackingNumber,
+        estimatedDelivery: ship.estimatedDelivery,
+      });
+    }
+  }
 
   return { ok: true };
 }

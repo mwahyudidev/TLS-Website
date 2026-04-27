@@ -4,6 +4,7 @@ import { newsletterSubscribers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { errors } from "@/server/lib/errors";
 import { z } from "zod";
+import { sendNewsletterWelcome } from "@/server/lib/email";
 
 export const subscribeSchema = z.object({
   email: z.string().email(),
@@ -28,6 +29,7 @@ export async function subscribe(data: z.infer<typeof subscribeSchema>) {
       .set({ status: "active", unsubscribedAt: null, subscribedAt: now, updatedAt: now })
       .where(eq(newsletterSubscribers.id, existing[0].id))
       .returning();
+    void sendNewsletterWelcome(row!.email);
     return { alreadySubscribed: false, subscriber: row! };
   }
 
@@ -40,6 +42,7 @@ export async function subscribe(data: z.infer<typeof subscribeSchema>) {
       subscribedAt: now,
     })
     .returning();
+  void sendNewsletterWelcome(row!.email);
   return { alreadySubscribed: false, subscriber: row! };
 }
 

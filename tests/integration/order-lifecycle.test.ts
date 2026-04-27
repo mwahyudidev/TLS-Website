@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import path from "node:path";
 import fs from "node:fs";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { eq } from "drizzle-orm";
 
 // We test the order lifecycle end-to-end against a fresh on-disk SQLite DB.
@@ -11,22 +11,21 @@ import { eq } from "drizzle-orm";
 
 const TEST_DB = path.resolve(__dirname, "../../db/data/_test_lifecycle.db");
 
-beforeAll(() => {
+beforeAll(async () => {
   // Wipe and rebuild
   for (const ext of ["", "-journal", "-wal", "-shm"]) {
     const p = TEST_DB + ext;
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
-  process.env.DATABASE_URL = TEST_DB;
+  process.env.TURSO_DATABASE_URL = `file:${TEST_DB}`;
+  process.env.TURSO_AUTH_TOKEN = "";
 
-  const sqlite = new Database(TEST_DB);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  const d = drizzle(sqlite);
-  migrate(d, {
+  const client = createClient({ url: `file:${TEST_DB}` });
+  const d = drizzle(client);
+  await migrate(d, {
     migrationsFolder: path.resolve(__dirname, "../../db/migrations"),
   });
-  sqlite.close();
+  await client.close();
 });
 
 describe("order lifecycle", () => {

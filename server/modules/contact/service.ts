@@ -4,6 +4,7 @@ import { contactMessages } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { errors } from "@/server/lib/errors";
 import { z } from "zod";
+import { sendContactAutoReply, sendContactAdminAlert } from "@/server/lib/email";
 
 export const contactSchema = z.object({
   name: z.string().min(1).max(100),
@@ -18,6 +19,18 @@ export async function submitContactMessage(data: z.infer<typeof contactSchema>) 
     .insert(contactMessages)
     .values({ ...data, status: "new" })
     .returning();
+
+  void Promise.all([
+    sendContactAutoReply(row!.email, { name: row!.name, subject: row!.subject, message: row!.message }),
+    sendContactAdminAlert({
+      name: row!.name,
+      email: row!.email,
+      phone: row!.phone ?? undefined,
+      subject: row!.subject,
+      message: row!.message,
+    }),
+  ]);
+
   return row!;
 }
 

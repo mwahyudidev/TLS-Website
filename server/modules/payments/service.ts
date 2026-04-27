@@ -2,6 +2,12 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  sendPaymentConfirmed,
+  sendPaymentFailed,
+  sendOrderCancelled,
+  sendOrderRefunded,
+} from "@/server/lib/email";
+import {
   payments,
   orders,
   orderItems,
@@ -127,6 +133,13 @@ export async function markPaid(paymentId: number, ctx: ChangeContext) {
     ]);
   });
 
+  void sendPaymentConfirmed(order.customerEmail, {
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    amountCents: payment.amountCents,
+    paymentMethod: payment.paymentMethod,
+  });
+
   return { ok: true };
 }
 
@@ -162,6 +175,12 @@ export async function markFailed(paymentId: number, ctx: ChangeContext) {
       changedByRole: ctx.by.role,
       createdAt: nowSec,
     });
+  });
+
+  void sendPaymentFailed(order.customerEmail, {
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    reason: ctx.notes,
   });
 
   return { ok: true };
@@ -217,6 +236,13 @@ export async function cancelPayment(paymentId: number, ctx: ChangeContext) {
       },
     ]);
   });
+
+  void sendOrderCancelled(order.customerEmail, {
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    reason: ctx.notes,
+  });
+
   return { ok: true };
 }
 
@@ -287,6 +313,13 @@ export async function refundSimulation(paymentId: number, ctx: ChangeContext) {
         createdAt: nowSec,
       },
     ]);
+  });
+
+  void sendOrderRefunded(order.customerEmail, {
+    customerName: order.customerName,
+    orderNumber: order.orderNumber,
+    amountCents: payment.amountCents,
+    reason: ctx.notes,
   });
 
   return { ok: true };

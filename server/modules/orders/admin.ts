@@ -11,6 +11,7 @@ import {
 import { errors } from "@/server/lib/errors";
 import { assertOrderTransition } from "@/server/statusMachine/orderStatus";
 import type { AuthUser } from "@/server/lib/session";
+import { sendOrderStatusUpdate, sendOrderCancelled } from "@/server/lib/email";
 
 export type AdminOrderListOpts = {
   status?: OrderStatus;
@@ -79,25 +80,38 @@ export async function setOrderStatus(
 
   const nowSec = Math.floor(Date.now() / 1000);
   await db.transaction(async (tx) => {
-    tx.update(orders)
+    await tx
+      .update(orders)
       .set({ orderStatus: newStatus, updatedAt: nowSec })
-      .where(eq(orders.id, orderId))
-      .run();
+      .where(eq(orders.id, orderId));
 
-    tx.insert(orderStatusHistory)
-      .values({
-        orderId,
-        statusType: "order",
-        oldStatus: order.orderStatus,
-        newStatus,
-        title: titleFor(newStatus),
-        description: ctx.notes ?? `Updated by ${ctx.by.name}`,
-        changedByUserId: ctx.by.id,
-        changedByRole: ctx.by.role,
-        createdAt: nowSec,
-      })
-      .run();
+    await tx.insert(orderStatusHistory).values({
+      orderId,
+      statusType: "order",
+      oldStatus: order.orderStatus,
+      newStatus,
+      title: titleFor(newStatus),
+      description: ctx.notes ?? `Updated by ${ctx.by.name}`,
+      changedByUserId: ctx.by.id,
+      changedByRole: ctx.by.role,
+      createdAt: nowSec,
+    });
   });
+
+  if (newStatus === "cancelled") {
+    void sendOrderCancelled(order.customerEmail, {
+      customerName: order.customerName,
+      orderNumber: order.orderNumber,
+      reason: ctx.notes,
+    });
+  } else {
+    void sendOrderStatusUpdate(order.customerEmail, {
+      customerName: order.customerName,
+      orderNumber: order.orderNumber,
+      newStatus,
+    });
+  }
+
   return { ok: true };
 }
 

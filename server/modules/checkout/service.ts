@@ -1,6 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
+import { sendOrderConfirmation, sendNewOrderAlert } from "@/server/lib/email";
 import {
   orders,
   orderItems,
@@ -287,6 +288,40 @@ export async function createOrder(input: CheckoutInput) {
   }
 
   if (appliedCouponCode) await recordCouponUse(appliedCouponCode);
+
+  // Send emails (fire-and-forget — errors are caught inside sendMail)
+  const emailData = {
+    customerName: orderRow.customerName,
+    orderNumber: orderRow.orderNumber,
+    items: validated.map((l) => ({
+      productName: l.name,
+      productSku: l.sku,
+      quantity: l.quantity,
+      unitPriceCents: l.unitPriceCents,
+      lineSubtotalCents: l.lineSubtotalCents,
+    })),
+    subtotalCents: orderRow.subtotalCents,
+    discountTotalCents: orderRow.discountTotalCents,
+    shippingTotalCents: orderRow.shippingTotalCents,
+    grandTotalCents: orderRow.grandTotalCents,
+    couponCode: orderRow.couponCode,
+    paymentMethod: created.paymentMethod,
+    paymentInstructions: created.instructions
+      ? `${created.instructions.title}\n${created.instructions.body}`
+      : null,
+    shippingAddress: {
+      recipientName: input.shippingAddress.recipientName,
+      addressLine: input.shippingAddress.addressLine,
+      addressLine2: input.shippingAddress.addressLine2 ?? null,
+      city: input.shippingAddress.city,
+      postalCode: input.shippingAddress.postalCode,
+      country: input.shippingAddress.country,
+    },
+  };
+  void Promise.all([
+    sendOrderConfirmation(orderRow.customerEmail, emailData),
+    sendNewOrderAlert({ ...emailData, customerEmail: orderRow.customerEmail, customerPhone: orderRow.customerPhone }),
+  ]);
 
   return {
     orderId: orderRow.id,
