@@ -9,6 +9,15 @@ const client = createClient({
 });
 
 const db = drizzle(client);
-await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "db/migrations") });
-console.log("Migrations applied to", process.env.TURSO_DATABASE_URL);
-client.close();
+
+async function main() {
+  await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "db/migrations") });
+  console.log("Migrations applied to", process.env.TURSO_DATABASE_URL);
+  client.close();
+}
+
+main().catch((err) => {
+  console.error("Migration failed:", err);
+  client.close();
+  process.exit(1);
+});
