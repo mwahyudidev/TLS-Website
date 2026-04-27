@@ -121,7 +121,7 @@ export async function setShipmentStatus(
   }
   if (nextOrderStatus) assertOrderTransition(order.orderStatus, nextOrderStatus);
 
-  db.transaction((tx) => {
+  await db.transaction(async (tx) => {
     const patch: Record<string, unknown> = {
       shippingStatus: newStatus,
       notes: ctx.notes ?? ship.notes,
@@ -130,41 +130,37 @@ export async function setShipmentStatus(
     if (newStatus === "shipped" && !ship.shippedAt) patch.shippedAt = nowSec;
     if (newStatus === "delivered" && !ship.deliveredAt) patch.deliveredAt = nowSec;
 
-    tx.update(shipments).set(patch).where(eq(shipments.id, shipmentId)).run();
+    await tx.update(shipments).set(patch).where(eq(shipments.id, shipmentId));
 
-    tx.insert(orderStatusHistory)
-      .values({
+    await tx.insert(orderStatusHistory).values({
+      orderId: ship.orderId,
+      statusType: "shipping",
+      oldStatus: ship.shippingStatus,
+      newStatus,
+      title: shippingStatusTitle(newStatus),
+      description: ctx.notes ?? `Updated by ${ctx.by.name}`,
+      changedByUserId: ctx.by.id,
+      changedByRole: ctx.by.role,
+      createdAt: nowSec,
+    });
+
+    if (nextOrderStatus) {
+      await tx
+        .update(orders)
+        .set({ orderStatus: nextOrderStatus, updatedAt: nowSec })
+        .where(eq(orders.id, order.id));
+
+      await tx.insert(orderStatusHistory).values({
         orderId: ship.orderId,
-        statusType: "shipping",
-        oldStatus: ship.shippingStatus,
-        newStatus,
-        title: shippingStatusTitle(newStatus),
-        description: ctx.notes ?? `Updated by ${ctx.by.name}`,
+        statusType: "order",
+        oldStatus: order.orderStatus,
+        newStatus: nextOrderStatus,
+        title: orderStatusTitle(nextOrderStatus),
+        description: `Auto-updated from shipping status`,
         changedByUserId: ctx.by.id,
         changedByRole: ctx.by.role,
         createdAt: nowSec,
-      })
-      .run();
-
-    if (nextOrderStatus) {
-      tx.update(orders)
-        .set({ orderStatus: nextOrderStatus, updatedAt: nowSec })
-        .where(eq(orders.id, order.id))
-        .run();
-
-      tx.insert(orderStatusHistory)
-        .values({
-          orderId: ship.orderId,
-          statusType: "order",
-          oldStatus: order.orderStatus,
-          newStatus: nextOrderStatus,
-          title: orderStatusTitle(nextOrderStatus),
-          description: `Auto-updated from shipping status`,
-          changedByUserId: ctx.by.id,
-          changedByRole: ctx.by.role,
-          createdAt: nowSec,
-        })
-        .run();
+      });
     }
   });
 

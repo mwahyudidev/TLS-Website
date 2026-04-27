@@ -146,11 +146,11 @@ export async function createOrder(input: CheckoutInput) {
     }
   }
 
-  const orderNumber = nextOrderNumber(db);
+  // Single atomic transaction for order number + order + items + addr + shipment + history + cart clear
+  const orderRow = await db.transaction(async (tx) => {
+    const orderNumber = await nextOrderNumber(tx);
 
-  // Single atomic transaction for order + items + addr + shipment + history + cart clear
-  const orderRow = db.transaction((tx) => {
-    const [created] = tx
+    const [created] = await tx
       .insert(orders)
       .values({
         orderNumber,
@@ -168,87 +168,78 @@ export async function createOrder(input: CheckoutInput) {
         paymentStatus: "unpaid",
         notes: input.notes ?? null,
       })
-      .returning()
-      .all();
+      .returning();
 
     for (const line of validated) {
-      tx.insert(orderItems)
-        .values({
-          orderId: created!.id,
-          productId: line.productId,
-          productName: line.name,
-          productSku: line.sku,
-          unitPriceCents: line.unitPriceCents,
-          quantity: line.quantity,
-          lineSubtotalCents: line.lineSubtotalCents,
-        })
-        .run();
+      await tx.insert(orderItems).values({
+        orderId: created!.id,
+        productId: line.productId,
+        productName: line.name,
+        productSku: line.sku,
+        unitPriceCents: line.unitPriceCents,
+        quantity: line.quantity,
+        lineSubtotalCents: line.lineSubtotalCents,
+      });
     }
 
-    tx.insert(shippingAddresses)
-      .values({
-        orderId: created!.id,
-        recipientName: input.shippingAddress.recipientName,
-        phone: input.customer.phone,
-        addressLine: input.shippingAddress.addressLine,
-        addressLine2: input.shippingAddress.addressLine2 ?? null,
-        city: input.shippingAddress.city,
-        province: input.shippingAddress.province ?? null,
-        postalCode: input.shippingAddress.postalCode,
-        country: input.shippingAddress.country,
-      })
-      .run();
+    await tx.insert(shippingAddresses).values({
+      orderId: created!.id,
+      recipientName: input.shippingAddress.recipientName,
+      phone: input.customer.phone,
+      addressLine: input.shippingAddress.addressLine,
+      addressLine2: input.shippingAddress.addressLine2 ?? null,
+      city: input.shippingAddress.city,
+      province: input.shippingAddress.province ?? null,
+      postalCode: input.shippingAddress.postalCode,
+      country: input.shippingAddress.country,
+    });
 
-    tx.insert(shipments)
-      .values({
-        orderId: created!.id,
-        shippingCostCents: shippingCents,
-        shippingStatus: "not_shipped",
-        courierName: input.selectedShipping?.courierName ?? null,
-        shippingService: input.selectedShipping?.serviceName ?? null,
-        easyParcelServiceId: input.selectedShipping?.serviceId ?? null,
-        easyParcelCourierId: input.selectedShipping?.courierId ?? null,
-      })
-      .run();
+    await tx.insert(shipments).values({
+      orderId: created!.id,
+      shippingCostCents: shippingCents,
+      shippingStatus: "not_shipped",
+      courierName: input.selectedShipping?.courierName ?? null,
+      shippingService: input.selectedShipping?.serviceName ?? null,
+      easyParcelServiceId: input.selectedShipping?.serviceId ?? null,
+      easyParcelCourierId: input.selectedShipping?.courierId ?? null,
+    });
 
     const nowSec = Math.floor(Date.now() / 1000);
-    tx.insert(orderStatusHistory)
-      .values([
-        {
-          orderId: created!.id,
-          statusType: "order",
-          oldStatus: null,
-          newStatus: "pending",
-          title: "Order placed",
-          description: "Order created and awaiting payment",
-          changedByRole: "system",
-          createdAt: nowSec,
-        },
-        {
-          orderId: created!.id,
-          statusType: "payment",
-          oldStatus: null,
-          newStatus: "unpaid",
-          title: "Awaiting payment",
-          description: "Customer must complete simulated payment",
-          changedByRole: "system",
-          createdAt: nowSec,
-        },
-        {
-          orderId: created!.id,
-          statusType: "shipping",
-          oldStatus: null,
-          newStatus: "not_shipped",
-          title: "Not shipped",
-          description: "Awaiting payment confirmation",
-          changedByRole: "system",
-          createdAt: nowSec,
-        },
-      ])
-      .run();
+    await tx.insert(orderStatusHistory).values([
+      {
+        orderId: created!.id,
+        statusType: "order",
+        oldStatus: null,
+        newStatus: "pending",
+        title: "Order placed",
+        description: "Order created and awaiting payment",
+        changedByRole: "system",
+        createdAt: nowSec,
+      },
+      {
+        orderId: created!.id,
+        statusType: "payment",
+        oldStatus: null,
+        newStatus: "unpaid",
+        title: "Awaiting payment",
+        description: "Customer must complete simulated payment",
+        changedByRole: "system",
+        createdAt: nowSec,
+      },
+      {
+        orderId: created!.id,
+        statusType: "shipping",
+        oldStatus: null,
+        newStatus: "not_shipped",
+        title: "Not shipped",
+        description: "Awaiting payment confirmation",
+        changedByRole: "system",
+        createdAt: nowSec,
+      },
+    ]);
 
     if (cart.cartId) {
-      tx.delete(cartItems).where(eq(cartItems.cartId, cart.cartId)).run();
+      await tx.delete(cartItems).where(eq(cartItems.cartId, cart.cartId));
     }
 
     return created!;

@@ -1,25 +1,22 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
-import path from "node:path";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import { sql } from "drizzle-orm";
 import { hashPassword } from "../server/lib/password";
 import * as schema from "./schema";
 
-const dbPath = process.env.DATABASE_URL ?? "./db/data/store.db";
-const absPath = path.isAbsolute(dbPath)
-  ? dbPath
-  : path.resolve(process.cwd(), dbPath);
-const sqlite = new Database(absPath);
-sqlite.pragma("foreign_keys = ON");
-const db = drizzle(sqlite, { schema });
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
+const db = drizzle(client, { schema });
 
 async function seed() {
-  console.log("Seeding database at", absPath);
+  console.log("Seeding database at", process.env.TURSO_DATABASE_URL);
 
   const existing = await db.select().from(schema.roles).all();
   if (existing.length > 0) {
     console.log("Already seeded — skipping. Run `npm run db:reset` to reseed.");
-    sqlite.close();
+    client.close();
     return;
   }
 
@@ -902,11 +899,11 @@ async function seed() {
   console.log("✓ Coupon: FRESH10 (10% off, min $30)");
 
   console.log("\n✅ Seed complete — The Line Seafood is ready.\n");
-  sqlite.close();
+  client.close();
 }
 
 seed().catch((err) => {
   console.error("Seed failed:", err);
-  sqlite.close();
+  client.close();
   process.exit(1);
 });

@@ -112,8 +112,8 @@ export async function createProduct(input: ProductInput) {
     .get();
   if (existingSku) throw errors.conflict(`SKU "${input.sku}" is already in use`);
 
-  return db.transaction((tx) => {
-    const [created] = tx
+  return db.transaction(async (tx) => {
+    const [created] = await tx
       .insert(products)
       .values({
         name: input.name,
@@ -127,24 +127,21 @@ export async function createProduct(input: ProductInput) {
         status: input.status,
         featured: input.featured,
       })
-      .returning()
-      .all();
+      .returning();
 
     if (input.imageUrl) {
-      tx.insert(productImages)
-        .values({
-          productId: created!.id,
-          url: input.imageUrl,
-          altText: input.name,
-          sortOrder: 0,
-        })
-        .run();
+      await tx.insert(productImages).values({
+        productId: created!.id,
+        url: input.imageUrl,
+        altText: input.name,
+        sortOrder: 0,
+      });
     }
 
     for (const catId of input.categoryIds) {
-      tx.insert(productCategories)
-        .values({ productId: created!.id, categoryId: catId })
-        .run();
+      await tx
+        .insert(productCategories)
+        .values({ productId: created!.id, categoryId: catId });
     }
 
     return created!;
@@ -173,8 +170,9 @@ export async function updateProduct(id: number, input: ProductInput) {
     if (dup && dup.id !== id) throw errors.conflict(`SKU "${input.sku}" is already in use`);
   }
 
-  return db.transaction((tx) => {
-    tx.update(products)
+  return db.transaction(async (tx) => {
+    await tx
+      .update(products)
       .set({
         name: input.name,
         slug,
@@ -188,38 +186,33 @@ export async function updateProduct(id: number, input: ProductInput) {
         featured: input.featured,
         updatedAt: Math.floor(Date.now() / 1000),
       })
-      .where(eq(products.id, id))
-      .run();
+      .where(eq(products.id, id));
 
-    // Replace categories with new selection
-    tx.delete(productCategories).where(eq(productCategories.productId, id)).run();
+    await tx.delete(productCategories).where(eq(productCategories.productId, id));
     for (const catId of input.categoryIds) {
-      tx.insert(productCategories)
-        .values({ productId: id, categoryId: catId })
-        .run();
+      await tx
+        .insert(productCategories)
+        .values({ productId: id, categoryId: catId });
     }
 
-    // Replace primary image if provided (keeps gallery on multi-image flows)
     if (input.imageUrl) {
-      const hasImage = tx
+      const hasImage = await tx
         .select({ id: productImages.id })
         .from(productImages)
         .where(eq(productImages.productId, id))
         .get();
       if (hasImage) {
-        tx.update(productImages)
+        await tx
+          .update(productImages)
           .set({ url: input.imageUrl, updatedAt: Math.floor(Date.now() / 1000) })
-          .where(eq(productImages.id, hasImage.id))
-          .run();
+          .where(eq(productImages.id, hasImage.id));
       } else {
-        tx.insert(productImages)
-          .values({
-            productId: id,
-            url: input.imageUrl,
-            altText: input.name,
-            sortOrder: 0,
-          })
-          .run();
+        await tx.insert(productImages).values({
+          productId: id,
+          url: input.imageUrl,
+          altText: input.name,
+          sortOrder: 0,
+        });
       }
     }
     return { ok: true };
