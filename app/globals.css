@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn/ui HSL tokens — tuned to brand */
+    --background: 0 0% 100%;
+    --foreground: 195 61% 13%;        /* #0D2B35 */
+    --card: 0 0% 100%;
+    --card-foreground: 195 61% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 195 61% 13%;
+    --primary: 180 82% 24%;           /* #0B6E6E */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 180 52% 94%;         /* #E6F7F7 */
+    --secondary-foreground: 195 61% 13%;
+    --muted: 180 40% 96%;
+    --muted-foreground: 191 29% 41%;  /* #4A7B86 */
+    --accent: 180 52% 94%;            /* #E6F7F7 */
+    --accent-foreground: 180 82% 24%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 180 40% 87%;            /* #D0EBEB */
+    --input: 180 40% 87%;
+    --ring: 180 84% 34%;              /* #0E9E9E */
+    --radius: 0.75rem;
+
+    /* ── Brand design tokens ── */
+    --color-primary: #0B6E6E;
+    --color-primary-light: #0E9E9E;
+    --color-primary-subtle: #E6F7F7;
+    --color-accent: #00C4B4;
+    --color-navy: #083D4F;
+    --color-surface: #F8FFFE;
+    --color-text-primary: #0D2B35;
+    --color-text-secondary: #4A7B86;
+    --color-border: #D0EBEB;
+
+    /* Shadows */
+    --shadow-card: 0 2px 8px rgba(11,110,110,0.08), 0 1px 3px rgba(11,110,110,0.05);
+    --shadow-card-hover: 0 8px 24px rgba(11,110,110,0.15), 0 4px 8px rgba(11,110,110,0.08);
+    --shadow-dropdown: 0 16px 48px rgba(8,61,79,0.15);
+    --shadow-button: 0 4px 14px rgba(14,158,158,0.35);
+  }
+
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    color: var(--color-text-primary);
+  }
+
+  h1, h2, h3, h4 {
+    color: var(--color-navy);
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin { scrollbar-width: thin; }
+
+  /* Brand backgrounds */
+  .bg-brand-surface  { background-color: var(--color-surface); }
+  .bg-brand-subtle   { background-color: var(--color-primary-subtle); }
+  .bg-brand-navy     { background-color: var(--color-navy); }
+
+  /* Brand text */
+  .text-brand-primary   { color: var(--color-primary); }
+  .text-brand-light     { color: var(--color-primary-light); }
+  .text-brand-secondary { color: var(--color-text-secondary); }
+  .text-brand-navy      { color: var(--color-navy); }
+
+  /* Card shadows */
+  .shadow-brand-card       { box-shadow: var(--shadow-card); }
+  .shadow-brand-card-hover { box-shadow: var(--shadow-card-hover); }
+
+  /* Font utility (kept for backwards compat, uses sans) */
+  .font-display { font-family: var(--font-sans), system-ui, sans-serif; }
+}
+
+/* ── Animation keyframes ── */
+@keyframes float-x {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  33%       { transform: translateX(12px) translateY(-6px); }
+  66%       { transform: translateX(-8px) translateY(4px); }
+}
+@keyframes bubble-rise {
+  0%   { transform: translateY(0) scale(1); opacity: 0.06; }
+  100% { transform: translateY(-80px) scale(1.1); opacity: 0; }
+}
+@keyframes sway {
+  0%, 100% { transform: rotate(-4deg) translateY(0); }
+  50%       { transform: rotate(4deg) translateY(-4px); }
+}
+@keyframes sea-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30%       { transform: translateY(-10px) rotate(2deg); }
+  60%       { transform: translateY(-5px) rotate(-1.5deg); }
+}
+@keyframes sea-float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg) scaleX(1); }
+  40%       { transform: translateY(-14px) rotate(-3deg) scaleX(1.02); }
+  70%       { transform: translateY(-7px) rotate(2deg) scaleX(0.98); }
+}
+@keyframes sea-drift {
+  0%, 100% { transform: translateX(0) translateY(0) rotate(0deg); }
+  25%       { transform: translateX(8px) translateY(-6px) rotate(4deg); }
+  50%       { transform: translateX(-4px) translateY(-12px) rotate(-2deg); }
+  75%       { transform: translateX(-8px) translateY(-4px) rotate(3deg); }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-primary-subtle) 25%, #d0f0f0 50%, var(--color-primary-subtle) 75%);
+  background-size: 200% auto;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* Focus ring — brand teal */
+*:focus-visible {
+  outline: 2px solid var(--color-primary-light);
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
