@@ -2,12 +2,13 @@ import "server-only";
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 465),
-  secure: process.env.SMTP_SECURE !== "false",
+  service: "gmail",
   auth: {
+    type: "OAuth2",
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
   },
 });
 
@@ -21,7 +22,7 @@ export async function sendMail(options: {
   subject: string;
   html: string;
 }) {
-  if (!process.env.SMTP_HOST) return; // skip silently if not configured
+  if (!process.env.GOOGLE_REFRESH_TOKEN) return; // skip silently if not configured
 
   try {
     await transporter.sendMail({
